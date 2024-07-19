@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import psycopg2
 
 from app import config as cfg
+from app import modules as md
 
 connection = psycopg2.connect(
     dbname="time_manager",
@@ -36,12 +37,32 @@ with connection.cursor() as cursor:
 
 
 def add_user(user_id):
-    print(user_id, int(time.time()))
     with connection.cursor() as cursor:
         cursor.execute(
-            """INSERT INTO users (user_id, created_time) VALUES (%s, %s)""",
-            (user_id, int(time.time()))
+            """INSERT INTO users (user_id, created_time, region, start_time) 
+            VALUES (%s, %s, %s, %s)""",
+            (user_id, int(time.time()), 0, 8)
         )
+
+
+def get_user_info(user_id):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT created_time, region, start_time
+            FROM users
+            WHERE user_id = %s
+        """, (user_id,))
+        return cursor.fetchone()
+
+
+def get_user_time_zone(user_id):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT region
+            FROM users
+            WHERE user_id = %s
+        """, (user_id,))
+        return cursor.fetchone()
 
 
 def avg_all_time(user_id):
@@ -157,6 +178,20 @@ def all_users():
         return cursor.fetchall()
 
 
+def get_distribution_user(user_id):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT start_time, region
+            FROM users
+            WHERE user_id = %s
+        """, (user_id,))
+        data = cursor.fetchone()
+        region = data[1]
+        hours = md.generate_hours(data[0])
+        if datetime.now().hour + region in hours:
+            return user_id
+
+
 if __name__ == '__main__':
-    avg_all_time(1098640843)
+    print(get_distribution_user(1098640843))
     pass

@@ -28,19 +28,25 @@ storage = MemoryStorage()
 bot = Bot(token=cfg.token)
 dp = Dispatcher(bot, storage=storage)
 
+main_buttons = [KeyboardButton(text="Статистика📊"),
+                KeyboardButton(text="Добавить☑️"),
+                KeyboardButton(text="Настройки⚙️")]
 accept_buttons = [KeyboardButton(text="Подтвердить✅"),
                   KeyboardButton(text="Отмена❌")]
-main_buttons = [KeyboardButton(text="Статистика📊"),
-                KeyboardButton(text="Добавить☑️")]
-statistic_buttons = [KeyboardButton(text="За сегодня"),
-                     KeyboardButton(text="За 30 Дней")]
+statistic_buttons = [KeyboardButton(text="За сегодня🕐"),
+                     KeyboardButton(text="За 30 Дней📅")]
+change_settings = [KeyboardButton(text="Изменить часовой пояс🕰"),
+                   KeyboardButton(text="Изменить график⌛️"),
+                   KeyboardButton(text="Назад🔙")]
 
+main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
+    *main_buttons)
 accept_keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
     *accept_buttons)
 statistic_keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
     *statistic_buttons)
-main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
-    *main_buttons)
+settings_keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
+    *change_settings)
 
 
 def delete_img(file_path):
@@ -81,9 +87,15 @@ async def handle_add_rate(message: types.Message, state: FSMContext):
 async def handle_add_rate(message: types.Message, state: FSMContext):
     await state.update_data(user_id=message.from_user.id)
     data = await state.get_data()
+    user_id = message.from_user.id
     if 'time' not in data or 'date' not in data:
-        await state.update_data(time=int(time.time()))
-        await state.update_data(date=md.time_to_date(int(time.time())))
+        time_zone = db.get_user_time_zone(user_id)[0]
+        draw_statistic = ds.DrawStatistic(time_zone)
+        await state.update_data(time=draw_statistic.get_time())
+        time_zone = db.get_user_time_zone(user_id)[0]
+        draw_statistic = ds.DrawStatistic(time_zone)
+        await state.update_data(
+            date=md.time_to_date(draw_statistic.get_time()))
         data = await state.get_data()
     db.add_data(data)
     if time.localtime(data['time']).tm_hour >= 22:
@@ -91,7 +103,9 @@ async def handle_add_rate(message: types.Message, state: FSMContext):
         with open('img/result.png', 'rb') as photo:
             current_date = datetime.now()
             today_date = current_date.strftime('%d:%m')
-            ds.draw_day(today_date, user_id)
+            time_zone = db.get_user_time_zone(user_id)[0]
+            draw_statistic = ds.DrawStatistic(time_zone)
+            draw_statistic.draw_day(today_date, user_id)
             mes = md.statistics_mes(today_date)
             await bot.send_photo(user_id, photo=photo, caption=mes,
                                  reply_markup=main_keyboard)
@@ -124,12 +138,14 @@ async def handle_add_rate(message: types.Message):
                            reply_markup=statistic_keyboard)
 
 
-@dp.message_handler(state=UserState.start, text="За сегодня")
+@dp.message_handler(state=UserState.start, text="За сегодня🕐")
 async def handle_add_rate(message: types.Message):
     user_id = message.from_user.id
     current_date = datetime.now()
     today_date = current_date.strftime('%d:%m')
-    mes = ds.draw_day(today_date, user_id)
+    time_zone = db.get_user_time_zone(user_id)[0]
+    draw_statistic = ds.DrawStatistic(time_zone)
+    mes = draw_statistic.draw_day(today_date, user_id)
     img_path = f'img/{user_id}_day.png'
     if os.path.isfile(img_path):
         with open(img_path, 'rb') as photo:
@@ -142,10 +158,12 @@ async def handle_add_rate(message: types.Message):
                                reply_markup=main_keyboard)
 
 
-@dp.message_handler(state=UserState.start, text="За 30 Дней")
+@dp.message_handler(state=UserState.start, text="За 30 Дней📅")
 async def handle_add_rate(message: types.Message):
     user_id = message.from_user.id
-    ds.draw_30d(user_id)
+    time_zone = db.get_user_time_zone(user_id)[0]
+    draw_statistic = ds.DrawStatistic(time_zone)
+    draw_statistic.draw_30d(user_id)
     img_path = f'img/{user_id}_month.png'
     if os.path.isfile(img_path):
         with open(img_path, 'rb') as photo:
@@ -164,12 +182,33 @@ async def handle_add_rate(message: types.Message, state: FSMContext):
     await state.set_state(UserState.add_date.state)
 
 
+@dp.message_handler(state=UserState.start, text="Назад🔙")
+async def handle_add_rate(message: types.Message, state: FSMContext):
+    await message.delete()
+    await bot.send_message(message.from_user.id, "Назад🔙",
+                           reply_markup=main_keyboard)
+
+
+@dp.message_handler(state=UserState.start, text="Настройки⚙️")
+async def handle_add_rate(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    data = db.get_user_info(user_id)
+    date = datetime.fromtimestamp(data[0]).strftime('%d.%m.%Y')
+    graphiq = f"{data[2]:02d}:00 - {(data[2] + 15) % 24:02d}:00"
+    mes = (
+        f"Дата регистрации: {date}\nЧасовой пояс: {data[1]}\nГрафик: {graphiq}"
+    )
+    await message.answer(mes, reply_markup=settings_keyboard)
+
+
 @dp.message_handler(lambda message: 'статистика ' in message.text.lower(),
                     state=UserState.start)
 async def handle_add_rate(message: types.Message):
     user_id = message.from_user.id
     today_date = message.text.lower().split()[1]
-    mes = ds.draw_day(today_date, user_id)
+    time_zone = db.get_user_time_zone(user_id)[0]
+    draw_statistic = ds.DrawStatistic(time_zone)
+    mes = draw_statistic.draw_day(today_date, user_id)
     img_path = f'img/{user_id}_day.png'
     if os.path.isfile(img_path):
         with open(img_path, 'rb') as photo:
@@ -187,12 +226,13 @@ async def handle_add_rate(message: types.Message):
 
 @dp.message_handler(state=UserState.add_date)
 async def handle_add_rate(message: types.Message, state: FSMContext):
-    data_time = md.str_to_time(message.text)
     user_id = message.from_user.id
+    time_zone = db.get_user_time_zone(user_id)[0]
+    data_time = md.str_to_time(message.text, time_zone)
     if not data_time:
         await message.reply("Напиши дату в формате Час:День:Месяц")
     else:
-        await state.update_data(time=md.str_to_time(message.text))
+        await state.update_data(time=data_time)
         data = await state.get_data()
         date_send = time.localtime(data['time'])
         if date_send.tm_hour in hours:
@@ -200,19 +240,24 @@ async def handle_add_rate(message: types.Message, state: FSMContext):
                 await state.set_state(UserState.add_rate.state)
                 await state.update_data(date=md.time_to_date(data['time']))
                 data = await state.get_data()
-
+                time_zone = db.get_user_time_zone(user_id)[0]
+                draw_statistic = ds.DrawStatistic(time_zone)
                 if db.check_date(user_id, md.time_to_date(data['time'])):
                     await message.answer("Эта дата уже записана")
                     await state.set_state(UserState.start.state)
-                elif data['time'] > time.time():
+                elif data['time'] > draw_statistic.get_time():
                     await message.answer("Нельзя записать будущую дату")
                     await state.set_state(UserState.start.state)
                 else:
                     await message.answer('Оцени час от 1 до 10')
+                print(data['time'], draw_statistic.get_time())
+                print(data['time'] - draw_statistic.get_time())
             else:
                 await message.reply("Неверная дата")
         else:
-            await message.reply("Можно заполнить только 7-22")
+            data = db.get_user_info(user_id)
+            graphiq = f"{data[2]:02d}:00 - {(data[2] + 15) % 24:02d}:00"
+            await message.reply(f"Можно заполнить только {graphiq}")
 
 
 async def main():

@@ -29,7 +29,7 @@ def get_entries_by_date(day_month, data):
     return results
 
 
-def str_to_time(date_string):
+def str_to_time(date_string, time_zone):
     try:
         if ':' in date_string:
             parts = date_string.split(':')
@@ -37,8 +37,9 @@ def str_to_time(date_string):
             if not i.isdigit() or i == '0':
                 return None
         if len(parts) == 3:
-            hour = int(parts[0])
-            day = int(parts[1])
+            hours = int(parts[0]) + int(parts[1]) * 24 + time_zone
+            hour = hours % 24
+            day = hours // 24
             month = int(parts[2])
             current_year = time.localtime().tm_year
             given_time = time.struct_time(
@@ -51,8 +52,8 @@ def str_to_time(date_string):
                 (current_year, month, day, 0, 0, 0, 0, 0, -1))
         seconds_since_epoch = time.mktime(given_time)
         return seconds_since_epoch
-    except Exception:
-        return None
+    except Exception as ex:
+        print(ex)
 
 
 def time_to_date(seconds_since_epoch):
@@ -89,14 +90,15 @@ def calculate_percentage(number1, number2):
 
 
 def generate_hours(start_hour):
-    result = []
-    current_hour = start_hour
+    if -1 < start_hour < 25:
+        result = []
+        current_hour = start_hour
 
-    for _ in range(16):  # Включаем стартовый час и 15 последующих часов
-        result.append(current_hour)
-        current_hour = (current_hour + 1) % 24  # Переход через 24 часа
-
-    return result
+        for _ in range(16):
+            current_hour = (current_hour) % 24
+            result.append(current_hour)
+            current_hour += 1
+        return result
 
 
 if __name__ == '__main__':
