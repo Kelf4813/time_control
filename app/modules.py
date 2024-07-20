@@ -1,5 +1,8 @@
 import time
 from datetime import datetime
+import traceback
+
+from app import database as db
 
 collors = [
     '#35B400',
@@ -12,6 +15,7 @@ def get_entries_by_date(day_month, data):
     try:
         input_date = datetime.strptime(day_month, '%d:%m')
     except ValueError:
+        traceback.print_exc()
         return None
     results = {}
 
@@ -37,7 +41,7 @@ def str_to_time(date_string, time_zone):
             if not i.isdigit() or i == '0':
                 return None
         if len(parts) == 3:
-            hours = int(parts[0]) + int(parts[1]) * 24 + time_zone
+            hours = int(parts[0]) + int(parts[1]) * 24
             hour = hours % 24
             day = hours // 24
             month = int(parts[2])
@@ -54,6 +58,7 @@ def str_to_time(date_string, time_zone):
         return seconds_since_epoch
     except Exception as ex:
         print(ex)
+        traceback.print_exc()
 
 
 def time_to_date(seconds_since_epoch):
@@ -62,11 +67,17 @@ def time_to_date(seconds_since_epoch):
         date_string = dt_object.strftime("%H:%d:%m")
         return date_string
     except ValueError:
-        print("Ошибка: Неверное количество секунд с начала отсчета")
+        traceback.print_exc()
         return None
 
 
-def statistics_mes(data):
+def is_number(s):
+    if s.startswith('-'):
+        return s[1:].isdigit()
+    return s.isdigit()
+
+
+def statistics_mes(data, user_id):
     mes = ''
     for i in data:
         hour = str(time.localtime(i).tm_hour - 1)

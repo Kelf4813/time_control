@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import time
+import traceback
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -89,7 +90,7 @@ class DrawStatistic:
             else:
                 yesterday_avg = 0
                 all_minis_today = 0
-            if today_rate != week_rate:
+            if today_rate != week_rate and sum(week_rate) - sum(today_rate):
                 week_minis_today = round((sum(week_rate) - sum(today_rate)) / (
                         len(week_rate) - len(today_rate)), 2)
             else:
@@ -113,22 +114,22 @@ class DrawStatistic:
                 formatted_date = day_month + '.24'
             draw = ImageDraw.Draw(image)
 
-            width_all = self.get_text_width(f"{all_avg} /", font)
-            width_week = self.get_text_width(f"{week_avg} /", font)
-            width_today = self.get_text_width(f"{today_avg} /", font)
+            # width_all = self.get_text_width(f"{all_avg} /", font)
+            # width_week = self.get_text_width(f"{week_avg} /", font)
+            # width_today = self.get_text_width(f"{today_avg} /", font)
 
-            draw.text((411, 95), f"{all_avg} /", font=font, fill='black')
-            draw.text((448, 181), f"{week_avg} / ", font=font, fill='black')
-            draw.text((413, 267), f"{today_avg} / ", font=font, fill='black')
+            draw.text((411, 95), f"{all_avg}", font=font, fill='black')
+            draw.text((448, 181), f"{week_avg}", font=font, fill='black')
+            draw.text((416, 267), f"{today_avg}", font=font, fill='black')
 
-            draw.text((width_all + 411 + 9, 95), f"{percent_all[0]}",
-                      font=font,
-                      fill=percent_all[1])
-            draw.text((width_week + 448 + 9, 181), f"{percent_week[0]}",
-                      font=font,
-                      fill=percent_week[1])
-            draw.text((width_today + 413 + 9, 267), f"{percent_today[0]}",
-                      font=font, fill=percent_today[1])
+            # draw.text((width_all + 411 + 9, 95), f"{percent_all[0]}",
+            #           font=font,
+            #           fill=percent_all[1])
+            # draw.text((width_week + 448 + 9, 181), f"{percent_week[0]}",
+            #           font=font,
+            #           fill=percent_week[1])
+            # draw.text((width_today + 413 + 9, 267), f"{percent_today[0]}",
+            #           font=font, fill=percent_today[1])
 
             draw.text((1478, 95), formatted_date, font=font, fill='black')
             image.save(f'img/{user_id}_day.png')
@@ -182,8 +183,7 @@ class DrawStatistic:
                             rotated_text_image)
                 image = self.draw_new_post(post_x, post_x + 29,
                                            post_y - round(50 * (rate - 1)),
-                                           image,
-                                           rate)
+                                           image, rate)
                 main_image_x += 53
                 post_x += 53
             draw = ImageDraw.Draw(image)
@@ -194,7 +194,7 @@ class DrawStatistic:
     def draw_time(self, start_hour):
         hours = md.generate_hours(start_hour)
         if hours:
-            image = Image.open('img/back_test.png'
+            image = Image.open('img/background.png'
                                '').convert("RGBA")
             draw = ImageDraw.Draw(image)
             font = ImageFont.truetype("font.ttf", 29)
@@ -207,7 +207,7 @@ class DrawStatistic:
                 else:
                     hour = f"{hour}:00"
                 draw.text((x, y), hour, font=font, fill='black')
-                x += 100
+                x += 100.7
             return image
 
     def draw_day(self, day_month, user_id):
@@ -220,18 +220,21 @@ class DrawStatistic:
             data_draw = db.data_date(user_id, days)
             image = self.draw_time(start_hour)
             for i in data_draw:
-                hour = time.localtime(i).tm_hour - start_hour
+                hour = (time.localtime(i).tm_hour - start_hour) % 24
                 rate = data_draw[i]['rate']
                 x = 100 * hour
                 y = 883 - 50 * (rate - 1)
-                image = self.draw_new_post(x, x + 50, y - 1, image, rate)
-                draw = ImageDraw.Draw(image)
-                draw.line((90, 930, 1700, 930), fill='black', width=2)
+                dt_object = datetime.fromtimestamp(i).hour
+                if start_hour < dt_object < (start_hour + 17):
+                    image = self.draw_new_post(x, x + 50, y - 1, image, rate)
+            draw = ImageDraw.Draw(image)
+            draw.line((90, 930, 1700, 930), fill='black', width=2)
 
             self.draw_info(data_db, data_draw, image, day_month, user_id)
-            return md.statistics_mes(data_draw)
+            return md.statistics_mes(data_draw, user_id)
         except Exception as ex:
             print(ex)
+            traceback.print_exc()
             return None
 
 

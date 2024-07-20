@@ -45,6 +45,26 @@ def add_user(user_id):
         )
 
 
+def change_region(user_id, time_zone):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """UPDATE users
+             SET region = %s 
+             WHERE user_id = %s""",
+            (time_zone, user_id)
+        )
+
+
+def change_graphiq(user_id, graphiq):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """UPDATE users
+             SET start_time = %s 
+             WHERE user_id = %s""",
+            (graphiq, user_id)
+        )
+
+
 def get_user_info(user_id):
     with connection.cursor() as cursor:
         cursor.execute("""
@@ -193,5 +213,5 @@ def get_distribution_user(user_id):
 
 
 if __name__ == '__main__':
-    print(get_distribution_user(1098640843))
+    print(get_distribution_user(948503583))
     pass
